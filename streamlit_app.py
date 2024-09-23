@@ -6,6 +6,14 @@ from pydub import AudioSegment
 import io
 import tempfile
 import os
+import subprocess
+
+# Check if ffmpeg is installed
+try:
+    subprocess.run(["ffmpeg", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+except FileNotFoundError:
+    st.error("FFmpeg is not installed. Please make sure it's properly set up.")
+    st.stop()
 
 class Agent:
     def __init__(self, role, backstory, voice):
@@ -42,57 +50,58 @@ def clean_dialogue(text, role):
     return cleaned_text.strip()
 
 async def simulate_podcast(topic):
-    host = Agent(
-        role='Podcast Host',
-        backstory=f"""You're an AI simulating a friendly and curious podcast host. You're known for 
-        your insightful questions and ability to guide conversations.""",
-        voice="en-US-GuyNeural"
-    )
+    with st.spinner("Generating podcast... This may take a few minutes."):
+        host = Agent(
+            role='Podcast Host',
+            backstory=f"""You're an AI simulating a friendly and curious podcast host. You're known for 
+            your insightful questions and ability to guide conversations.""",
+            voice="en-US-GuyNeural"
+        )
 
-    guest = Agent(
-        role='Expert Guest',
-        backstory=f"""You're an AI simulating an expert in {topic}. You have extensive knowledge 
-        and experience in this field. You're here to share insights and discuss {topic} in an 
-        informative yet approachable manner.""",
-        voice="en-US-JennyNeural"
-    )
+        guest = Agent(
+            role='Expert Guest',
+            backstory=f"""You're an AI simulating an expert in {topic}. You have extensive knowledge 
+            and experience in this field. You're here to share insights and discuss {topic} in an 
+            informative yet approachable manner.""",
+            voice="en-US-JennyNeural"
+        )
 
-    transcript = ""
-    combined_audio = AudioSegment.silent(duration=500)  # Start with 0.5 second of silence
-    conversation_history = ""
+        transcript = ""
+        combined_audio = AudioSegment.silent(duration=500)  # Start with 0.5 second of silence
+        conversation_history = ""
 
-    # Discussion
-    for i in range(4):  # 4 exchanges
-        host_prompt = f"Ask a new, unique question about {topic} that hasn't been discussed yet. Consider the conversation history: {conversation_history}"
-        host_question = host.generate_response(host_prompt)
-        cleaned_host_question = clean_dialogue(host_question, "host")
-        transcript += f"Host: {cleaned_host_question}\n\n"
-        combined_audio += await text_to_speech(cleaned_host_question, host.voice)
-        conversation_history += f"Host: {cleaned_host_question}\n"
+        # Discussion
+        for i in range(4):  # 4 exchanges
+            host_prompt = f"Ask a new, unique question about {topic} that hasn't been discussed yet. Consider the conversation history: {conversation_history}"
+            host_question = host.generate_response(host_prompt)
+            cleaned_host_question = clean_dialogue(host_question, "host")
+            transcript += f"Host: {cleaned_host_question}\n\n"
+            combined_audio += await text_to_speech(cleaned_host_question, host.voice)
+            conversation_history += f"Host: {cleaned_host_question}\n"
 
-        guest_prompt = f"Respond to the host's question: {cleaned_host_question}\nProvide a unique perspective, considering the conversation history: {conversation_history}"
-        guest_response = guest.generate_response(guest_prompt)
-        cleaned_guest_response = clean_dialogue(guest_response, "guest")
-        transcript += f"Guest: {cleaned_guest_response}\n\n"
-        combined_audio += await text_to_speech(cleaned_guest_response, guest.voice)
-        conversation_history += f"Guest: {cleaned_guest_response}\n"
+            guest_prompt = f"Respond to the host's question: {cleaned_host_question}\nProvide a unique perspective, considering the conversation history: {conversation_history}"
+            guest_response = guest.generate_response(guest_prompt)
+            cleaned_guest_response = clean_dialogue(guest_response, "guest")
+            transcript += f"Guest: {cleaned_guest_response}\n\n"
+            combined_audio += await text_to_speech(cleaned_guest_response, guest.voice)
+            conversation_history += f"Guest: {cleaned_guest_response}\n"
 
-    # Save the audio
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_audio:
-        combined_audio.export(temp_audio.name, format="mp3")
-        st.audio(temp_audio.name, format='audio/mp3')
-    
-    # Display and offer transcript download
-    st.text_area("Transcript", transcript, height=300)
-    st.download_button(
-        label="Download Transcript",
-        data=transcript,
-        file_name=f"podcast_{topic.replace(' ', '_')}_transcript.txt",
-        mime="text/plain"
-    )
+        # Save the audio
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as temp_audio:
+            combined_audio.export(temp_audio.name, format="mp3")
+            st.audio(temp_audio.name, format='audio/mp3')
+        
+        # Display and offer transcript download
+        st.text_area("Transcript", transcript, height=300)
+        st.download_button(
+            label="Download Transcript",
+            data=transcript,
+            file_name=f"podcast_{topic.replace(' ', '_')}_transcript.txt",
+            mime="text/plain"
+        )
 
-    # Clean up temporary file
-    os.unlink(temp_audio.name)
+        # Clean up temporary file
+        os.unlink(temp_audio.name)
 
 st.title("AI Podcast Simulator")
 topic = st.text_input("What topic would you like discussed in the podcast?")
