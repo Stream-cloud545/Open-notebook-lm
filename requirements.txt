@@ -1,4 +1,4 @@
 streamlit
 duckduckgo_search
 edge-tts
-pydub
+pydub==0.25.1
